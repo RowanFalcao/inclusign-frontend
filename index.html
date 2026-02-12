@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IncluSign AI - Assistente de Libras</title>
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; --chat-bg: #ffffff; --user-msg: #2563eb; --ai-msg: #f1f5f9; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; justify-content: center; height: 100vh; }
+        .app-container { width: 100%; max-width: 600px; background: var(--chat-bg); display: flex; flex-direction: column; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); height: 100%; }
+        header { padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: white; }
+        header h1 { font-size: 1.2rem; margin: 0; color: #1e293b; }
+        .status-dot { height: 10px; width: 10px; background-color: #22c55e; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        #chat-window { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; scroll-behavior: smooth; }
+        .message { max-width: 80%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; font-size: 0.95rem; word-wrap: break-word; }
+        .message.user { align-self: flex-end; background: var(--user-msg); color: white; border-bottom-right-radius: 2px; }
+        .message.ai { align-self: flex-start; background: var(--ai-msg); color: #334155; border-bottom-left-radius: 2px; }
+        .typing-indicator { font-style: italic; color: #94a3b8; font-size: 0.8rem; margin-left: 10px; display: none; }
+        .input-area { padding: 20px; background: white; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; }
+        input { flex: 1; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
+        button { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        button:disabled { background: #94a3b8; cursor: not-allowed; }
+        .disclaimer { font-size: 0.7rem; text-align: center; color: #94a3b8; padding-bottom: 5px; }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <header>
+        <span class="status-dot"></span>
+        <h1>IncluSign AI</h1>
+    </header>
+    <div id="chat-window">
+        <div class="message ai">Olá! Sou seu assistente de inclusão. Posso traduzir termos técnicos ou ajudar com adaptações pedagógicas.</div>
+    </div>
+    <div class="typing-indicator" id="typing">Digitando...</div>
+    <div class="input-area">
+        <input type="text" id="user-input" placeholder="Digite sua dúvida..." autocomplete="off">
+        <button onclick="sendMessage()" id="send-btn">Enviar</button>
+    </div>
+    <div class="disclaimer">Ambiente de teste PIVIC.</div>
+</div>
+<script>
+    // AQUI ESTÁ SUA URL CONFIGURADA:
+    const N8N_URL = "https://agente.acesselibrasai.com.br/webhook/chat"; 
+
+    let sessionId = localStorage.getItem('chatSessionId');
+    if (!sessionId) { sessionId = 'sessao-' + Math.random().toString(36).substr(2, 9); localStorage.setItem('chatSessionId', sessionId); }
+    const chatWindow = document.getElementById('chat-window');
+    const userInput = document.getElementById('user-input');
+    const sendBtn = document.getElementById('send-btn');
+    const typingIndicator = document.getElementById('typing');
+
+    userInput.addEventListener("keypress", function(event) { if (event.key === "Enter") sendMessage(); });
+
+    async function sendMessage() {
+        const text = userInput.value.trim();
+        if (!text) return;
+        addMessage(text, 'user');
+        userInput.value = ''; userInput.disabled = true; sendBtn.disabled = true; typingIndicator.style.display = 'block';
+
+        try {
+            const response = await fetch(N8N_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text, sessionId: sessionId })
+            });
+            if (!response.ok) throw new Error('Erro servidor');
+            const data = await response.json();
+            
+            // Tratamento inteligente da resposta (compatível com PocketBase ou direto)
+            let aiText = "Erro ao ler resposta.";
+            if (data.content) aiText = data.content;
+            else if (data.candidates && data.candidates[0].content.parts[0].text) aiText = data.candidates[0].content.parts[0].text;
+            else if (data.output) aiText = data.output;
+            else if (data.text) aiText = data.text;
+
+            addMessage(aiText, 'ai');
+        } catch (error) {
+            console.error(error);
+            addMessage("Erro de conexão. Verifique se o n8n está Ativo.", 'ai');
+        } finally {
+            userInput.disabled = false; sendBtn.disabled = false; typingIndicator.style.display = 'none'; userInput.focus();
+        }
+    }
+    function addMessage(text, sender) {
+        const div = document.createElement('div');
+        div.classList.add('message', sender);
+        div.innerHTML = text.replace(/\n/g, '<br>');
+        chatWindow.appendChild(div);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+</script>
+</body>
+</html>
