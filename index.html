@@ -63,7 +63,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: text, sessionId: sessionId })
-            });
+                });
             if (!response.ok) throw new Error('Erro servidor');
             const data = await response.json();
             
