@@ -41,54 +41,72 @@
 </div>
 <script>
     // AQUI ESTÁ SUA URL CONFIGURADA:
+<script>
     const N8N_URL = "https://agente.acesselibrasai.com.br/webhook/chat"; 
 
     let sessionId = localStorage.getItem('chatSessionId');
-    if (!sessionId) { sessionId = 'sessao-' + Math.random().toString(36).substr(2, 9); localStorage.setItem('chatSessionId', sessionId); }
+    if (!sessionId) { 
+        sessionId = 'sessao-' + Math.random().toString(36).substr(2, 9); 
+        localStorage.setItem('chatSessionId', sessionId); 
+    }
+
     const chatWindow = document.getElementById('chat-window');
-    const userInput = document.getElementById('user-input');
-    const sendBtn = document.getElementById('send-btn');
     const typingIndicator = document.getElementById('typing');
 
-    userInput.addEventListener("keypress", function(event) { if (event.key === "Enter") sendMessage(); });
+    // Listener para o Enter
+    document.getElementById('user-input').addEventListener("keypress", function(event) { 
+        if (event.key === "Enter") sendMessage(); 
+    });
 
     async function sendMessage() {
-    const input = document.getElementById('chat-input');
-    const button = document.getElementById('send-button');
-    const text = input.value.trim();
+        // Pegando os elementos com os IDs CORRETOS que estão no seu HTML
+        const input = document.getElementById('user-input');
+        const button = document.getElementById('send-btn');
 
-    if (!text) return;
+        if (!input) return;
 
-    input.disabled = true;
-    button.disabled = true;
-    button.innerText = "Aguarde..."; 
+        const text = input.value.trim();
+        if (!text) return;
 
-    addMessage(text, 'user');
-    input.value = '';
+        // Trava para evitar spam e respeitar a cota do Gemini
+        input.disabled = true;
+        if (button) {
+            button.disabled = true;
+            button.innerText = "Pensando...";
+        }
 
-    try {
-        const response = await fetch(N8N_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text, sessionId: sessionId })
-        });
+        addMessage(text, 'user');
+        input.value = '';
+        if (typingIndicator) typingIndicator.style.display = 'block';
 
-        if (!response.ok) throw new Error('Erro servidor');
-        
-        const data = await response.json();
-        addMessage(data.output || data.message || "Sem resposta", 'bot');
+        try {
+            const response = await fetch(N8N_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text, sessionId: sessionId })
+            });
 
-    } catch (error) {
-        console.error(error);
-        addMessage("Erro de conexão. Tente novamente em 1 minuto.", 'bot');
-    } finally {
+            if (!response.ok) throw new Error('Erro no servidor');
+            
+            const data = await response.json();
+            // Ajuste para ler 'output' ou 'message' conforme o n8n enviar
+            const botMsg = data.output || data.message || "Sem resposta";
+            addMessage(botMsg, 'ai'); // Use 'ai' para combinar com seu CSS
 
-        input.disabled = false;
-        button.disabled = false;
-        button.innerText = "Enviar";
-        input.focus();
+        } catch (error) {
+            console.error("Erro:", error);
+            addMessage("Erro de conexão. Tente novamente em 1 minuto.", 'ai');
+        } finally {
+            if (typingIndicator) typingIndicator.style.display = 'none';
+            input.disabled = false;
+            if (button) {
+                button.disabled = false;
+                button.innerText = "Enviar";
+            }
+            input.focus();
+        }
     }
-}
+
     function addMessage(text, sender) {
         const div = document.createElement('div');
         div.classList.add('message', sender);
