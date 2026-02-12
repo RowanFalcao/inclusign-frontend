@@ -40,7 +40,7 @@
     <div class="disclaimer">Ambiente de teste PIVIC.</div>
 </div>
 <script>
-    // AQUI ESTÁ SUA URL CONFIGURADA:
+
     const N8N_URL = "https://agente.acesselibrasai.com.br/webhook/chat"; 
 
     let sessionId = localStorage.getItem('chatSessionId');
@@ -89,8 +89,8 @@
             
             const data = await response.json();
             // Ajuste para ler 'output' ou 'message' conforme o n8n enviar
-            const botMsg = data.output || data.message || "Sem resposta";
-            addMessage(botMsg, 'ai'); // Use 'ai' para combinar com seu CSS
+            const botMsg = data.content || data.output || data.message || "Sem resposta";
+            addMessage(botMsg, 'ai');
 
         } catch (error) {
             console.error("Erro:", error);
