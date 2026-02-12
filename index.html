@@ -53,35 +53,42 @@
     userInput.addEventListener("keypress", function(event) { if (event.key === "Enter") sendMessage(); });
 
     async function sendMessage() {
-        const text = userInput.value.trim();
-        if (!text) return;
-        addMessage(text, 'user');
-        userInput.value = ''; userInput.disabled = true; sendBtn.disabled = true; typingIndicator.style.display = 'block';
+    const input = document.getElementById('chat-input');
+    const button = document.getElementById('send-button');
+    const text = input.value.trim();
 
-        try {
-            const response = await fetch(N8N_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: text, sessionId: sessionId })
-                });
-            if (!response.ok) throw new Error('Erro servidor');
-            const data = await response.json();
-            
-            // Tratamento inteligente da resposta (compatível com PocketBase ou direto)
-            let aiText = "Erro ao ler resposta.";
-            if (data.content) aiText = data.content;
-            else if (data.candidates && data.candidates[0].content.parts[0].text) aiText = data.candidates[0].content.parts[0].text;
-            else if (data.output) aiText = data.output;
-            else if (data.text) aiText = data.text;
+    if (!text) return;
 
-            addMessage(aiText, 'ai');
-        } catch (error) {
-            console.error(error);
-            addMessage("Erro de conexão. Verifique se o n8n está Ativo.", 'ai');
-        } finally {
-            userInput.disabled = false; sendBtn.disabled = false; typingIndicator.style.display = 'none'; userInput.focus();
-        }
+    input.disabled = true;
+    button.disabled = true;
+    button.innerText = "Aguarde..."; 
+
+    addMessage(text, 'user');
+    input.value = '';
+
+    try {
+        const response = await fetch(N8N_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: text, sessionId: sessionId })
+        });
+
+        if (!response.ok) throw new Error('Erro servidor');
+        
+        const data = await response.json();
+        addMessage(data.output || data.message || "Sem resposta", 'bot');
+
+    } catch (error) {
+        console.error(error);
+        addMessage("Erro de conexão. Tente novamente em 1 minuto.", 'bot');
+    } finally {
+
+        input.disabled = false;
+        button.disabled = false;
+        button.innerText = "Enviar";
+        input.focus();
     }
+}
     function addMessage(text, sender) {
         const div = document.createElement('div');
         div.classList.add('message', sender);
