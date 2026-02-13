@@ -3,116 +3,207 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IncluSign AI - Assistente de Libras</title>
+    <title>IncluSign AI - Assistente Multimodal</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pocketbase/0.21.1/pocketbase.umd.min.js"></script>
     <style>
         :root { --primary: #2563eb; --bg: #f8fafc; --chat-bg: #ffffff; --user-msg: #2563eb; --ai-msg: #f1f5f9; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; justify-content: center; height: 100vh; }
-        .app-container { width: 100%; max-width: 600px; background: var(--chat-bg); display: flex; flex-direction: column; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); height: 100%; }
-        header { padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: white; }
+        .app-container { width: 100%; max-width: 600px; background: var(--chat-bg); display: flex; flex-direction: column; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); height: 100%; position: relative; }
+        
+        header { padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; background: white; z-index: 10; }
         header h1 { font-size: 1.2rem; margin: 0; color: #1e293b; }
         .status-dot { height: 10px; width: 10px; background-color: #22c55e; border-radius: 50%; display: inline-block; margin-right: 8px; }
-        #chat-window { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; scroll-behavior: smooth; }
-        .message { max-width: 80%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; font-size: 0.95rem; word-wrap: break-word; }
+        
+        #chat-window { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; scroll-behavior: smooth; padding-bottom: 80px; }
+        
+        .message { max-width: 80%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; font-size: 0.95rem; word-wrap: break-word; position: relative; }
         .message.user { align-self: flex-end; background: var(--user-msg); color: white; border-bottom-right-radius: 2px; }
         .message.ai { align-self: flex-start; background: var(--ai-msg); color: #334155; border-bottom-left-radius: 2px; }
-        .typing-indicator { font-style: italic; color: #94a3b8; font-size: 0.8rem; margin-left: 10px; display: none; }
-        .input-area { padding: 20px; background: white; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; }
-        input { flex: 1; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
-        button { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .message img { max-width: 100%; border-radius: 8px; margin-top: 5px; }
+
+        .typing-indicator { font-style: italic; color: #94a3b8; font-size: 0.8rem; margin-left: 20px; display: none; margin-bottom: 10px; }
+
+        .input-area { padding: 15px; background: white; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; align-items: center; position: absolute; bottom: 0; width: 100%; box-sizing: border-box; }
+        
+        /* Botão de Clips (Upload) */
+        .attach-btn { background: none; border: none; cursor: pointer; color: #64748b; padding: 8px; transition: color 0.2s; }
+        .attach-btn:hover { color: var(--primary); }
+        .attach-btn svg { width: 24px; height: 24px; }
+        
+        input[type="text"] { flex: 1; padding: 12px; border: 1px solid #cbd5e1; border-radius: 20px; outline: none; transition: border 0.2s; }
+        input[type="text"]:focus { border-color: var(--primary); }
+        
+        button#send-btn { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: 600; }
         button:disabled { background: #94a3b8; cursor: not-allowed; }
-        .disclaimer { font-size: 0.7rem; text-align: center; color: #94a3b8; padding-bottom: 5px; }
+
+        /* Preview do arquivo */
+        #file-preview { display: none; position: absolute; bottom: 70px; left: 15px; background: #e2e8f0; padding: 5px 10px; border-radius: 8px; font-size: 0.8rem; color: #475569; align-items: center; gap: 5px; }
+        #file-preview button { background: none; border: none; color: #ef4444; cursor: pointer; font-weight: bold; margin-left: 5px; }
     </style>
 </head>
 <body>
+
 <div class="app-container">
     <header>
         <span class="status-dot"></span>
-        <h1>IncluSign AI</h1>
+        <h1>IncluSign AI <small style="font-size:0.8em; color:#64748b; font-weight:normal;">(v2 Multimodal)</small></h1>
     </header>
+
     <div id="chat-window">
-        <div class="message ai">Olá! Sou seu assistente de inclusão. Posso traduzir termos técnicos ou ajudar com adaptações pedagógicas.</div>
+        <div class="message ai">Olá! Sou seu assistente PIVIC. Posso analisar imagens, ler PDFs da base de conhecimento ou tirar dúvidas de Libras. Como posso ajudar?</div>
     </div>
-    <div class="typing-indicator" id="typing">Digitando...</div>
+
+    <div class="typing-indicator" id="typing">Analisando...</div>
+
+    <div id="file-preview">
+        <span id="file-name">arquivo.pdf</span>
+        <button onclick="clearFile()">✕</button>
+    </div>
+
     <div class="input-area">
+        <input type="file" id="file-input" style="display: none;" accept="image/*,.pdf">
+        
+        <button class="attach-btn" onclick="document.getElementById('file-input').click()" title="Anexar Imagem ou PDF">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
+        </button>
+
         <input type="text" id="user-input" placeholder="Digite sua dúvida..." autocomplete="off">
-        <button onclick="sendMessage()" id="send-btn">Enviar</button>
+        <button onclick="handleSend()" id="send-btn">Enviar</button>
     </div>
-    <div class="disclaimer">Ambiente de teste PIVIC.</div>
 </div>
+
 <script>
+    // CONFIGURAÇÕES
+    const N8N_WEBHOOK = "https://agente.acesselibrasai.com.br/webhook/chat"; // URL do seu Chat v2
+    const PB_URL = "https://db.acesselibrasai.com.br";
+    const PB_COLLECTION = "documentos"; // Nome da coleção que você criou para uploads temporários
 
-    const N8N_URL = "https://agente.acesselibrasai.com.br/webhook/chat"; 
+    // Inicializa PocketBase
+    const pb = new PocketBase(PB_URL);
 
-    let sessionId = localStorage.getItem('chatSessionId');
-    if (!sessionId) { 
-        sessionId = 'sessao-' + Math.random().toString(36).substr(2, 9); 
-        localStorage.setItem('chatSessionId', sessionId); 
-    }
+    let currentFile = null;
+    let sessionId = localStorage.getItem('chatSessionId') || 'sessao-' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('chatSessionId', sessionId);
 
-    const chatWindow = document.getElementById('chat-window');
-    const typingIndicator = document.getElementById('typing');
-
-    // Listener para o Enter
-    document.getElementById('user-input').addEventListener("keypress", function(event) { 
-        if (event.key === "Enter") sendMessage(); 
+    // Listener de Arquivo
+    document.getElementById('file-input').addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            currentFile = e.target.files[0];
+            document.getElementById('file-name').innerText = currentFile.name.length > 20 ? currentFile.name.substr(0,15) + "..." : currentFile.name;
+            document.getElementById('file-preview').style.display = 'flex';
+        }
     });
 
-    async function sendMessage() {
-        // Pegando os elementos com os IDs CORRETOS que estão no seu HTML
+    function clearFile() {
+        currentFile = null;
+        document.getElementById('file-input').value = "";
+        document.getElementById('file-preview').style.display = 'none';
+    }
+
+    // Listener de Enter
+    document.getElementById('user-input').addEventListener("keypress", function(event) {
+        if (event.key === "Enter") handleSend();
+    });
+
+    async function handleSend() {
         const input = document.getElementById('user-input');
-        const button = document.getElementById('send-btn');
-
-        if (!input) return;
-
+        const btn = document.getElementById('send-btn');
         const text = input.value.trim();
-        if (!text) return;
 
-        // Trava para evitar spam e respeitar a cota do Gemini
+        if (!text && !currentFile) return;
+
+        // UI State: Bloquear envio
         input.disabled = true;
-        if (button) {
-            button.disabled = true;
-            button.innerText = "Pensando...";
+        btn.disabled = true;
+        btn.innerText = "Env...";
+        
+        // Mostrar msg do usuário
+        let userHtml = text;
+        if (currentFile && currentFile.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                addMessage(`${text} <br> <img src="${e.target.result}" style="max-height:150px;">`, 'user');
+            };
+            reader.readAsDataURL(currentFile);
+        } else if (currentFile) {
+            userHtml += ` <br> 📎 <i>${currentFile.name}</i>`;
+            addMessage(userHtml, 'user');
+        } else {
+            addMessage(userHtml, 'user');
         }
 
-        addMessage(text, 'user');
         input.value = '';
-        if (typingIndicator) typingIndicator.style.display = 'block';
+        document.getElementById('typing').style.display = 'block';
 
         try {
-            const response = await fetch(N8N_URL, {
+            let fileUrl = null;
+
+            // 1. Upload para PocketBase se houver arquivo
+            if (currentFile) {
+                const formData = new FormData();
+                formData.append('field', currentFile); // 'field' deve ser o nome da coluna no PB. Geralmente é 'file' ou 'field'
+                // Ajuste rápido: O PB geralmente usa o nome do campo criado.
+                // Vou assumir que o campo se chama 'file'. Se criou outro nome, mude abaixo.
+                formData.append('file', currentFile); 
+                
+                try {
+                    // Upload anônimo (se a coleção for pública) ou precisa autenticar
+                    // Para simplificar, vamos assumir coleção pública nas regras da API do PB
+                    const record = await pb.collection(PB_COLLECTION).create(formData);
+                    fileUrl = pb.files.getUrl(record, record.file);
+                    console.log("Arquivo subido:", fileUrl);
+                } catch (err) {
+                    console.error("Erro upload PB:", err);
+                    addMessage("Erro ao subir arquivo. Verifique se a coleção 'documentos' existe e é pública.", 'ai');
+                    throw err;
+                }
+            }
+
+            // 2. Enviar para n8n
+            const payload = {
+                message: text,
+                sessionId: sessionId,
+                fileUrl: fileUrl // Pode ser null ou a URL do PB
+            };
+
+            const response = await fetch(N8N_WEBHOOK, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: text, sessionId: sessionId })
+                body: JSON.stringify(payload)
             });
 
-            if (!response.ok) throw new Error('Erro no servidor');
-            
+            if (!response.ok) throw new Error('Erro n8n');
             const data = await response.json();
-            // Ajuste para ler 'output' ou 'message' conforme o n8n enviar
-            const botMsg = data.content || data.output || data.message || "Sem resposta";
+            
+            // Tratamento flexível da resposta (pode vir em 'output', 'text', 'message')
+            const botMsg = data.output || data.message || data.text || JSON.stringify(data);
             addMessage(botMsg, 'ai');
 
         } catch (error) {
-            console.error("Erro:", error);
-            addMessage("Erro de conexão. Tente novamente em 1 minuto.", 'ai');
+            console.error(error);
+            addMessage("Ocorreu um erro. Tente novamente.", 'ai');
         } finally {
-            if (typingIndicator) typingIndicator.style.display = 'none';
+            // Reset UI
             input.disabled = false;
-            if (button) {
-                button.disabled = false;
-                button.innerText = "Enviar";
-            }
+            btn.disabled = false;
+            btn.innerText = "Enviar";
+            document.getElementById('typing').style.display = 'none';
+            clearFile();
             input.focus();
         }
     }
 
-    function addMessage(text, sender) {
+    function addMessage(html, sender) {
         const div = document.createElement('div');
         div.classList.add('message', sender);
-        div.innerHTML = text.replace(/\n/g, '<br>');
+        div.innerHTML = html; // Cuidado com XSS em produção real, mas ok para protótipo
+        const chatWindow = document.getElementById('chat-window');
         chatWindow.appendChild(div);
         chatWindow.scrollTop = chatWindow.scrollHeight;
     }
 </script>
+
 </body>
 </html>
